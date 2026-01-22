@@ -9,6 +9,10 @@
 ##########
 # constants
 
+# ifs
+OIFS="$IFS" # save ifs
+IFS=        # set ifs to null
+
 # color constants
 COL_L_TANK=$'\x1b[38;5;28m'
 COL_R_TANK=$'\x1b[38;5;124m'
@@ -26,9 +30,16 @@ COL_NONE=$(tput sgr0)
 player=1
 
 # find playable size
-declare HEIGHT=$(($(tput lines) - 3)) WIDTH=$(($(tput cols) - 2))
+HEIGHT=$(($(tput lines) - 3))
+WIDTH=$(($(tput cols) - 2))
+# ensure playable area divisible by 3
+WIDTH=$((WIDTH - WIDTH % 3))
+# playable area sections
+tank_len=13
+area1=$((WIDTH / 3))
+area2=$((2 * WIDTH / 3))
 
-#here logic when screen too small
+#here logic when screen too small (maybe inside game loop?)
 # Set the columns and rows of the playable space (figure out how to make dynamic sigwinch)
 # trap 'resize' SIGWINCH
 #
@@ -37,11 +48,11 @@ declare HEIGHT=$(($(tput lines) - 3)) WIDTH=$(($(tput cols) - 2))
 #     COLS=$(tput cols)
 # }
 
+# initial tank position
 left_tank_pos=(1 $((HEIGHT - 5)))
 right_tank_pos=($((WIDTH - 14)) $((HEIGHT - 5)))
 
-IFS=
-
+# left tank
 read -r -d '' L_TANK <<-"EOF"
      __
    _|__|_//
@@ -50,6 +61,7 @@ __/_______\__
 EOF
 L_TANK=$COL_L_TANK$L_TANK$COL_NONE
 
+# right tank
 read -r -d '' R_TANK <<-"EOF"
       __
   \\_|__|_
@@ -73,6 +85,14 @@ r_power=50
 
 ##########
 # Functions
+
+# game instructions
+usage() {
+    cat <<EOF
+# Here instructions
+
+EOF
+}
 
 # Clean up screen at exit
 cleanup() {
@@ -120,11 +140,15 @@ draw-info() {
 
 # move a tank to the right
 move-tank-right() {
+    local area_left=$((area1 - tank_len))
+    local area_right=$((WIDTH - tank_len))
     if ((player % 2)); then
+        if ((left_tank_pos[0] == area_left)); then return; fi # make sure tank does not leave area
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]++))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
     else
+        if ((right_tank_pos[0] == area_right)); then return; fi
         delete-tank "${right_tank_pos[@]}" "$R_TANK"
         ((right_tank_pos[0]++))
         draw-tank "${right_tank_pos[@]}" "$R_TANK"
@@ -134,10 +158,12 @@ move-tank-right() {
 # move a tank to the left
 move-tank-left() {
     if ((player % 2)); then
+        if ((left_tank_pos[0] == 1)); then return; fi
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]--))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
     else
+        if ((right_tank_pos[0] == area2)); then return; fi
         delete-tank "${right_tank_pos[@]}" "$R_TANK"
         ((right_tank_pos[0]--))
         draw-tank "${right_tank_pos[@]}" "$R_TANK"
