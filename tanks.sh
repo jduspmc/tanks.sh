@@ -17,13 +17,13 @@ COL_R_TANK=$'\x1b[38;5;124m'
 # col_trail1=
 # col_trail2=
 # col_trail3=
-COL_NONE=$'\x1b[0m'
+COL_NONE=$(tput sgr0)
 
 ##########
 # global variables
 
 # player turn: true for player 1, false for player 2.
-player=true
+player=1
 
 # find playable size
 declare HEIGHT=$(($(tput lines) - 3)) WIDTH=$(($(tput cols) - 2))
@@ -40,7 +40,9 @@ declare HEIGHT=$(($(tput lines) - 3)) WIDTH=$(($(tput cols) - 2))
 left_tank_pos=(1 $((HEIGHT - 5)))
 right_tank_pos=($((WIDTH - 14)) $((HEIGHT - 5)))
 
-IFS= read -r -d '' L_TANK <<-"EOF"
+IFS=
+
+read -r -d '' L_TANK <<-"EOF"
      __
    _|__|_//
 __/_______\__
@@ -48,7 +50,7 @@ __/_______\__
 EOF
 L_TANK=$COL_L_TANK$L_TANK$COL_NONE
 
-IFS= read -r -d '' R_TANK <<-"EOF"
+read -r -d '' R_TANK <<-"EOF"
       __
   \\_|__|_
 __/_______\__
@@ -66,17 +68,17 @@ R_TANK=$COL_R_TANK$R_TANK$COL_NONE
 # initial state
 l_angle=45
 r_angle=45
-l_power=100
-r_power=100
+l_power=50
+r_power=50
 
 ##########
 # Functions
 
 # Clean up screen at exit
 cleanup() {
-    stty sane  # restore stty
-    tput cnorm # restore cursor
-    tput rmcup # go back to primary screen
+    tput cnorm        # restore cursor
+    tput rmcup        # go back to primary screen
+    stty "$stty_orig" # restore stty
 }
 
 # draw a tank
@@ -84,7 +86,7 @@ draw-tank() {
     local x=$1
     local y=$2
     local tank=$3
-    while IFS= read -r line; do
+    while read -r line; do
         tput cup "$y" "$x"
         echo -n "$line"
         ((y++))
@@ -108,15 +110,17 @@ delete-tank() {
 
 # draw projectile info
 draw-info() {
-    local x=$2
     local angle=$1
+    local power=$2
+    local x=$3
     tput cup $((HEIGHT - 1)) "$x"
-    echo -n "Angle: $angle° - Power: 100"
+    # printf "Angle: %3d° - Power: %3d   " "$angle" "$power"
+    printf "Angle: %d° - Power: %d\e[K" "$angle" "$power"
 }
 
 # move a tank to the right
 move-tank-right() {
-    if $player; then
+    if ((player % 2)); then
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]++))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
@@ -129,7 +133,7 @@ move-tank-right() {
 
 # move a tank to the left
 move-tank-left() {
-    if $player; then
+    if ((player % 2)); then
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]--))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
@@ -144,10 +148,13 @@ move-tank-left() {
 # main game logic
 
 # prepare screen
+stty_orig=$(stty -g)
 tput smcup                      # switch to alternate screen
-stty -echo -icanon min 0 time 0 # change terminal behaviour (no echo and no enter to read)
+stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
 tput civis                      # hide cursor
-trap cleanup EXIT INT TERM
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+trap cleanup EXIT
 
 tput clear # clear to screen to star game
 
@@ -159,8 +166,8 @@ draw-tank "${left_tank_pos[@]}" "$L_TANK"
 draw-tank "${right_tank_pos[@]}" "$R_TANK"
 
 while true; do
-    draw-info "$l_angle" "0"
-    draw-info "$r_angle" $((WIDTH - 22))
+    draw-info "$l_angle" "$l_power" "0"
+    draw-info "$r_angle" "$r_power" $((WIDTH - 22))
 
     read -rsn1 key
     if [[ $key == $'\e' ]]; then
@@ -171,14 +178,12 @@ while true; do
     case "$key" in
     a | $'\x1b[D') move-tank-left ;;
     d | $'\x1b[C') move-tank-right ;;
-    w | $'\x1b[A') if $player; then ((l_angle++)); else ((r_angle++)); fi ;;
-    s | $'\x1b[B') if $player; then ((l_angle--)); else ((r_angle--)); fi ;;
-    m) if $player; then ((l_power++)); else ((r_power++)); fi ;;
-    l) if $player; then ((l_power--)); else ((r_power--)); fi ;;
-    ' ') ;; # fire!
+    w | $'\x1b[A') if ((player % 2)); then ((l_angle++)); else ((r_angle++)); fi ;;
+    s | $'\x1b[B') if ((player % 2)); then ((l_angle--)); else ((r_angle--)); fi ;;
+    m) if ((player % 2)); then ((l_power++)); else ((r_power++)); fi ;;
+    l) if ((player % 2)); then ((l_power--)); else ((r_power--)); fi ;;
+    f | ' ') ((player++)) ;; # fire!
     q) break ;;
     *) continue ;;
     esac
 done
-
-cleanup
