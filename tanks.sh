@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
-##########
+###########################################################################################
 # source files
 
 # Source tput wrapper from https://github.com/bahamas10/bash-tput
 . ./tput
 
-##########
+###########################################################################################
 # constants
 
+STTY_ORIG=$(stty -g)
+
 # ifs
-OIFS="$IFS" # save ifs
-IFS=        # set ifs to null
+# OIFS="$IFS" # save ifs
+IFS= # set ifs to null
 
 # color constants
 COL_L_TANK=$'\x1b[38;5;28m'
@@ -22,35 +24,6 @@ COL_R_TANK=$'\x1b[38;5;124m'
 # col_trail2=
 # col_trail3=
 COL_NONE=$(tput sgr0)
-
-##########
-# global variables
-
-# player turn: true for player 1, false for player 2.
-player=1
-
-# find playable size
-HEIGHT=$(($(tput lines) - 3))
-WIDTH=$(($(tput cols) - 2))
-# ensure playable area divisible by 3
-WIDTH=$((WIDTH - WIDTH % 3))
-# playable area sections
-tank_len=13
-area1=$((WIDTH / 3))
-area2=$((2 * WIDTH / 3))
-
-#here logic when screen too small (maybe inside game loop?)
-# Set the columns and rows of the playable space (figure out how to make dynamic sigwinch)
-# trap 'resize' SIGWINCH
-#
-# resize() {
-#     ROWS=$(tput lines)
-#     COLS=$(tput cols)
-# }
-
-# initial tank position
-left_tank_pos=(1 $((HEIGHT - 5)))
-right_tank_pos=($((WIDTH - 14)) $((HEIGHT - 5)))
 
 # left tank
 read -r -d '' L_TANK <<-"EOF"
@@ -70,20 +43,39 @@ __/_______\__
 EOF
 R_TANK=$COL_R_TANK$R_TANK$COL_NONE
 
-# special="⋅"
+###########################################################################################
+# global variables
 
-#  ⋅⋅⋅
-# ⋅⋅⋅⋅⋅
-#  ⋅⋅⋅
+# player turn
+player=1
 
-##########
+# find playable size
+height=$(($(tput lines) - 3))
+width=$(($(tput cols) - 2))
+# ensure playable area divisible by 3
+width=$((width - width % 3))
+
+# playable area sections
+tank_len=13
+area1=$((width / 3))
+area2=$((2 * width / 3))
+
+# initial tank position
+left_tank_pos=(1 $((height - 5)))
+right_tank_pos=($((width - 14)) $((height - 5)))
 # initial state
 l_angle=45
 r_angle=45
 l_power=50
 r_power=50
 
-##########
+# special="⋅"
+
+#  ⋅⋅⋅
+# ⋅⋅⋅⋅⋅
+#  ⋅⋅⋅
+
+###########################################################################################
 # Functions
 
 # game instructions
@@ -98,7 +90,25 @@ EOF
 cleanup() {
     tput cnorm        # restore cursor
     tput rmcup        # go back to primary screen
-    stty "$stty_orig" # restore stty
+    stty "$STTY_ORIG" # restore stty
+}
+
+# if screen too small we can't play
+screen-too-small() {
+    if ((width < 60 || height < 24)); then
+        cleanup
+        echo ""
+        echo "Terminal is too small to play." >&2
+        echo "Please resize to at least 60 columns and 24 lines and try again." >&2
+        exit 1
+    fi
+}
+
+check-resize() {
+    cleanup
+    echo ""
+    echo "Don't resize the terminal window during the game!" >&2
+    exit 1
 }
 
 # draw a tank
@@ -133,7 +143,7 @@ draw-info() {
     local angle=$1
     local power=$2
     local x=$3
-    tput cup $((HEIGHT - 1)) "$x"
+    tput cup $((height - 1)) "$x"
     # printf "Angle: %3d° - Power: %3d   " "$angle" "$power"
     printf "Angle: %d° - Power: %d\e[K" "$angle" "$power"
 }
@@ -141,7 +151,7 @@ draw-info() {
 # move a tank to the right
 move-tank-right() {
     local area_left=$((area1 - tank_len))
-    local area_right=$((WIDTH - tank_len))
+    local area_right=$((width - tank_len))
     if ((player % 2)); then
         if ((left_tank_pos[0] == area_left)); then return; fi # make sure tank does not leave area
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
@@ -170,46 +180,57 @@ move-tank-left() {
     fi
 }
 
-##########
+###########################################################################################
 # main game logic
 
 # prepare screen
-stty_orig=$(stty -g)
-tput smcup                      # switch to alternate screen
-stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
-tput civis                      # hide cursor
-trap 'cleanup; exit 130' INT
-trap 'cleanup; exit 143' TERM
-trap cleanup EXIT
+main() {
 
-tput clear # clear to screen to star game
+    screen-too-small # check if the screen is acceptable
 
-tput cup "$HEIGHT" "$WIDTH"
-echo "$WIDTH,$HEIGHT"
+    # prepare screen for game
+    tput smcup                      # switch to alternate screen
+    stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
+    tput civis                      # hide cursor
+    tput clear                      # clear to screen to star game
 
-# draws initial state
-draw-tank "${left_tank_pos[@]}" "$L_TANK"
-draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    # trap signals
+    trap 'check-resize' SIGWINCH
+    trap 'cleanup; exit 130' INT
+    trap 'cleanup; exit 143' TERM
+    trap cleanup EXIT
 
-while true; do
-    draw-info "$l_angle" "$l_power" "0"
-    draw-info "$r_angle" "$r_power" $((WIDTH - 22))
+    # here for help
+    tput cup "$height" "$width"
+    echo "$width,$height"
 
-    read -rsn1 key
-    if [[ $key == $'\e' ]]; then
-        read -rsn2 key2
-        key+="$key2"
-    fi
+    # draws initial state
+    draw-tank "${left_tank_pos[@]}" "$L_TANK"
+    draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    # here i draw obstacles
 
-    case "$key" in
-    a | $'\x1b[D') move-tank-left ;;
-    d | $'\x1b[C') move-tank-right ;;
-    w | $'\x1b[A') if ((player % 2)); then ((l_angle++)); else ((r_angle++)); fi ;;
-    s | $'\x1b[B') if ((player % 2)); then ((l_angle--)); else ((r_angle--)); fi ;;
-    m) if ((player % 2)); then ((l_power++)); else ((r_power++)); fi ;;
-    l) if ((player % 2)); then ((l_power--)); else ((r_power--)); fi ;;
-    f | ' ') ((player++)) ;; # fire!
-    q) break ;;
-    *) continue ;;
-    esac
-done
+    while true; do
+        draw-info "$l_angle" "$l_power" "0"
+        draw-info "$r_angle" "$r_power" $((width - 22))
+
+        read -rsn1 key
+        if [[ $key == $'\e' ]]; then
+            read -rsn2 key2
+            key+="$key2"
+        fi
+
+        case "$key" in
+        a | $'\x1b[D') move-tank-left ;;
+        d | $'\x1b[C') move-tank-right ;;
+        w | $'\x1b[A') if ((player % 2)); then ((l_angle++)); else ((r_angle++)); fi ;;
+        s | $'\x1b[B') if ((player % 2)); then ((l_angle--)); else ((r_angle--)); fi ;;
+        m) if ((player % 2)); then ((l_power++)); else ((r_power++)); fi ;;
+        l) if ((player % 2)); then ((l_power--)); else ((r_power--)); fi ;;
+        f | ' ') ((player++)) ;; # fire!
+        q) break ;;
+        *) continue ;;
+        esac
+    done
+}
+
+main
