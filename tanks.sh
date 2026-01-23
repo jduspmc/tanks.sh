@@ -12,13 +12,13 @@
 STTY_ORIG=$(stty -g)
 
 # ifs
-# OIFS="$IFS" # save ifs
 IFS= # set ifs to null
 
 # color constants
 COL_L_TANK=$'\x1b[38;5;28m'
 COL_R_TANK=$'\x1b[38;5;124m'
-# col_obstacle=
+COL_OBSTACLE=$'\x1b[38;5;44m'
+BB_ON_W=$'\x1b[1;38;5;0;48;5;15m'
 # col_projectile=
 # col_trail1=
 # col_trail2=
@@ -42,6 +42,10 @@ __/_______\__
 \O_O_O_O_O_O/
 EOF
 R_TANK=$COL_R_TANK$R_TANK$COL_NONE
+
+# obstacle character
+OBSTACLE=X
+OBSTACLE=$COL_OBSTACLE$OBSTACLE$COL_NONE
 
 ###########################################################################################
 # global variables
@@ -68,6 +72,78 @@ l_angle=45
 r_angle=45
 l_power=50
 r_power=50
+density=50
+
+# declare obstacle array
+declare -A obstacles_array
+
+# draw obstacle
+draw-obstacles() {
+    local i j line
+    local dens=$1
+    local minx=$area1
+
+    for ((j = 1; j <= height; j++)); do
+        line=""
+
+        for ((i = area1; i <= area2; i++)); do
+            if ((RANDOM % dens == 0)); then
+                obstacles_array["$i,$j"]="$OBSTACLE"
+                line+="$OBSTACLE"
+            else
+                line+=" "
+            fi
+        done
+        printf '\e[%d;%dH%s' "$j" "$minx" "$line"
+    done
+}
+
+# prints menu and sets density
+print-menu() {
+    local col_1 col_2 col_3
+    local number=0
+
+    while true; do
+        if ((number % 3 == 0)); then
+            col_1=$BB_ON_W
+            col_2=
+            col_3=
+        elif ((number % 3 == 1)); then
+            col_1=
+            col_2=$BB_ON_W
+            col_3=
+        else
+            col_1=
+            col_2=
+            col_3=$BB_ON_W
+        fi
+        printf '\x1b[%d;%dH%s' "$((height - height / 4))" "$((width / 4))" "Select obstacle density (press 'q' to exit)"
+        printf '\x1b[%d;%dH%s' "$((height - height / 4 + 1))" "$((width / 4 + 1))" "${col_1}Easy$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((height - height / 4 + 2))" "$((width / 4 + 1))" "${col_2}Normal$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((height - height / 4 + 3))" "$((width / 4 + 1))" "${col_3}Hard$COL_NONE"
+
+        read -rsn1 key
+        if [[ $key == $'\x1b' ]]; then
+            read -rsn2 key2
+            key+="$key2"
+        fi
+        case "$key" in
+        w | $'\x1b[A') ((number--)) ;;
+        s | $'\x1b[B') ((number++)) ;;
+        '') break ;;
+        q) exit 0 ;;
+        *) continue ;;
+        esac
+        if ((number % 3 == 0)); then
+            density=50
+        elif ((number % 3 == 1)); then
+            density=20
+        else
+            density=1
+        fi
+    done
+
+}
 
 # special="⋅"
 
@@ -186,35 +262,39 @@ move-tank-left() {
 # prepare screen
 main() {
 
-    screen-too-small # check if the screen is acceptable
-
-    # prepare screen for game
-    tput smcup                      # switch to alternate screen
-    stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
-    tput civis                      # hide cursor
-    tput clear                      # clear to screen to star game
-
     # trap signals
     trap 'check-resize' SIGWINCH
     trap 'cleanup; exit 130' INT
     trap 'cleanup; exit 143' TERM
     trap cleanup EXIT
 
-    # here for help
-    tput cup "$height" "$width"
-    echo "$width,$height"
+    local key
+    local key2
 
+    screen-too-small # check if the screen is acceptable
+
+    # prepare screen for game
+    tput smcup                      # switch to alternate screen
+    stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
+    tput civis                      # hide cursor
+    tput clear                      # clear to screen to menu
+
+    print-menu
+
+    tput clear # clear to screen to star game
+
+    # draw obstacle
+    draw-obstacles "$density"
     # draws initial state
     draw-tank "${left_tank_pos[@]}" "$L_TANK"
     draw-tank "${right_tank_pos[@]}" "$R_TANK"
-    # here i draw obstacles
 
     while true; do
         draw-info "$l_angle" "$l_power" "0"
         draw-info "$r_angle" "$r_power" $((width - 22))
 
         read -rsn1 key
-        if [[ $key == $'\e' ]]; then
+        if [[ $key == $'\x1b' ]]; then
             read -rsn2 key2
             key+="$key2"
         fi
