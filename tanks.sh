@@ -6,56 +6,8 @@
 # Source tput wrapper from https://github.com/bahamas10/bash-tput
 . ./tput
 
-###########################################################################################
-# constants
-
-STTY_ORIG=$(stty -g)
-
-# ifs
-IFS= # set ifs to null
-
-# color constants
-COL_L_TANK=$'\x1b[38;5;28m'
-COL_R_TANK=$'\x1b[38;5;124m'
-COL_OBSTACLE=$'\x1b[38;5;44m'
-BB_ON_W=$'\x1b[1;38;5;0;48;5;15m'
-COL_PROJECTILE=$'\x1b[38;5;226m'
-COL_TRAIL1=$'\x1b[38;5;220m'
-COL_TRAIL2=$'\x1b[38;5;208m'
-COL_TRAIL3=$'\x1b[38;5;196m'
-COL_NONE=$(tput sgr0)
-
-# left tank
-read -r -d '' L_TANK <<-"EOF"
-     __
-   _|__|_//
-__/_______\__
-\O_O_O_O_O_O/
-EOF
-L_TANK=$COL_L_TANK$L_TANK$COL_NONE
-
-# right tank
-read -r -d '' R_TANK <<-"EOF"
-      __
-  \\_|__|_
-__/_______\__
-\O_O_O_O_O_O/
-EOF
-R_TANK=$COL_R_TANK$R_TANK$COL_NONE
-
-# obstacle character
-OBSTACLE=X
-OBSTACLE=$COL_OBSTACLE$OBSTACLE$COL_NONE
-
-# projectile characters
-BULLET="${COL_PROJECTILE}@$COL_NONE"
-TRAIL1="${COL_TRAIL1}*$COL_NONE"
-TRAIL2="${COL_TRAIL2}*$COL_NONE"
-TRAIL3="${COL_TRAIL3}*$COL_NONE"
-
-# power constants (initial projectile velocity)
-MAX_POWER=100
-MIN_POWER=20
+# source constants
+. ./contans
 
 ###########################################################################################
 # global variables
@@ -87,35 +39,8 @@ density=50
 # declare obstacle array
 declare -A obstacles_array
 
-# special="⋅"
-
-#  ⋅⋅⋅
-# ⋅⋅⋅⋅⋅
-#  ⋅⋅⋅
-
 ###########################################################################################
 # Functions
-
-# game instructions
-usage() {
-    cat <<EOF
-The objective is to destroy the enemy tank.
-
-Controls:
-  Move Tank:     'a' or Left Arrow (move left)
-                 'd' or Right Arrow (move right)
-
-  Adjust Angle:  'w' or Up Arrow (increase angle)
-                 's' or Down Arrow (decrease angle)
-
-  Adjust Power:  'm' (increase power)
-                 'l' (decrease power)
-
-  Fire Projectile: 'f' or Spacebar
-
-  Quit Game:     'q'
-EOF
-}
 
 # Clean up screen at exit
 cleanup() {
@@ -168,6 +93,7 @@ print-menu() {
     local col_1 col_2 col_3
     local number=0
 
+    # game instructions
     printf '\x1b[%d;%dH%s' "$((height / 4))" "$((width / 5))" "The objective is to destroy the enemy tank."
     printf '\x1b[%d;%dH%s' "$((height / 4 + 2))" "$((width / 5))" "Controls:"
     printf '\x1b[%d;%dH%s' "$((height / 4 + 3))" "$((width / 5))" "Move Tank:       'a' or Left Arrow (move left)"
@@ -365,7 +291,6 @@ fire-bullet() {
         done
         # draw-tank "${left_tank_pos[@]}" "$L_TANK"
     fi
-
 }
 
 # calculate parabolic motion
