@@ -7,7 +7,7 @@
 . ./tput
 
 # source constants
-. ./contans
+. ./constants
 
 ###########################################################################################
 # global variables
@@ -242,7 +242,7 @@ fire-bullet() {
             fi
 
             # sleep animation
-            sleep 0.02 # figure out what number is best
+            sleep 0.015 # figure out what number is best
 
             # Erase the bullet by printing a space in the same spot
             printf '\x1b[%d;%dH%s' "$y" "$i" " "
@@ -275,7 +275,7 @@ fire-bullet() {
             fi
 
             # sleep animation
-            sleep 0.02 # figure out what number is best
+            sleep 0.015 # figure out what number is best
 
             # Erase the bullet by printing a space in the same spot
             printf '\x1b[%d;%dH%s' "$y" "$i" " "
