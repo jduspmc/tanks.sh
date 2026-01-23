@@ -19,10 +19,10 @@ COL_L_TANK=$'\x1b[38;5;28m'
 COL_R_TANK=$'\x1b[38;5;124m'
 COL_OBSTACLE=$'\x1b[38;5;44m'
 BB_ON_W=$'\x1b[1;38;5;0;48;5;15m'
-# col_projectile=
-# col_trail1=
-# col_trail2=
-# col_trail3=
+COL_PROJECTILE=$'\x1b[38;5;226m'
+COL_TRAIL1=$'\x1b[38;5;220m'
+COL_TRAIL2=$'\x1b[38;5;208m'
+COL_TRAIL3=$'\x1b[38;5;196m'
 COL_NONE=$(tput sgr0)
 
 # left tank
@@ -46,6 +46,12 @@ R_TANK=$COL_R_TANK$R_TANK$COL_NONE
 # obstacle character
 OBSTACLE=X
 OBSTACLE=$COL_OBSTACLE$OBSTACLE$COL_NONE
+
+# projectile characters
+BULLET="${COL_PROJECTILE}@$COL_NONE"
+TRAIL1="${COL_TRAIL1}*$COL_NONE"
+TRAIL2="${COL_TRAIL2}*$COL_NONE"
+TRAIL3="${COL_TRAIL3}*$COL_NONE"
 
 # power constants (initial projectile velocity)
 MAX_POWER=100
@@ -93,8 +99,21 @@ declare -A obstacles_array
 # game instructions
 usage() {
     cat <<EOF
-# Here instructions
+The objective is to destroy the enemy tank.
 
+Controls:
+  Move Tank:     'a' or Left Arrow (move left)
+                 'd' or Right Arrow (move right)
+
+  Adjust Angle:  'w' or Up Arrow (increase angle)
+                 's' or Down Arrow (decrease angle)
+
+  Adjust Power:  'm' (increase power)
+                 'l' (decrease power)
+
+  Fire Projectile: 'f' or Spacebar
+
+  Quit Game:     'q'
 EOF
 }
 
@@ -109,12 +128,12 @@ cleanup() {
 draw-obstacles() {
     local i j line
     local dens=$1
-    local minx=$area1
+    local minx=$((area1 + 1))
 
     for ((j = 1; j <= height; j++)); do
         line=""
 
-        for ((i = area1; i <= area2; i++)); do
+        for ((i = minx; i <= area2; i++)); do
             if ((RANDOM % dens == 0)); then
                 obstacles_array["$i,$j"]="$OBSTACLE"
                 line+="$OBSTACLE"
@@ -149,10 +168,16 @@ print-menu() {
     local col_1 col_2 col_3
     local number=0
 
-    printf '\x1b[%d;%dH%s' "$((height / 3))" "$((width / 4))" "The objective is to destroy the enemy tank."
-    printf '\x1b[%d;%dH%s' "$((height / 3 + 1))" "$((width / 4))" "Press a, d or left, down to move the tank. Pres m, l to"
-    printf '\x1b[%d;%dH%s' "$((height / 3 + 2))" "$((width / 4))" "adjust projectile power. Press w, s or up, down to"
-    printf '\x1b[%d;%dH%s' "$((height / 3 + 3))" "$((width / 4))" "adjust firing angle. Press q to quit."
+    printf '\x1b[%d;%dH%s' "$((height / 4))" "$((width / 5))" "The objective is to destroy the enemy tank."
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 2))" "$((width / 5))" "Controls:"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 3))" "$((width / 5))" "Move Tank:       'a' or Left Arrow (move left)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 4))" "$((width / 5))" "                 'd' or Right Arrow (move right)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 5))" "$((width / 5))" "Adjust Angle:    'w' or Up Arrow (increase angle)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 6))" "$((width / 5))" "                 's' or Down Arrow (decrease angle)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 7))" "$((width / 5))" "Adjust Power:    'm' (increase power)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 8))" "$((width / 5))" "                 'l' (decrease power)"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 9))" "$((width / 5))" "Fire Projectile: 'f' or Spacebar"
+    printf '\x1b[%d;%dH%s' "$((height / 4 + 10))" "$((width / 5))" "Quit Game:       'q'"
 
     while true; do
         if ((number % 3 == 0)); then
@@ -264,6 +289,87 @@ move-tank-left() {
     fi
 }
 
+# fires the bullet
+fire-bullet() {
+    local i j
+    local x=$1 # 11 from cursor
+    local y=$2 # actual y position of tank
+
+    ((y = y + 1))
+
+    if ((player % 2)); then ((x = x + 11)); else ((x = x + 3)); fi # adjust bullet initial position
+
+    if ((player % 2)); then # Player 1's bullet
+        for ((i = x; i < width; i++)); do
+            # Print the bullet
+            printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
+
+            # add trail
+            if ((i > x + 1)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 1))" "$TRAIL1"
+            fi
+            if ((i > x + 2)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 2))" "$TRAIL2"
+            fi
+            if ((i > x + 3)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 3))" "$TRAIL3"
+            fi
+
+            # sleep animation
+            sleep 0.02 # figure out what number is best
+
+            # Erase the bullet by printing a space in the same spot
+            printf '\x1b[%d;%dH%s' "$y" "$i" " "
+            if ((i > x + 1)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 1))" " "
+            fi
+            if ((i > x + 2)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 2))" " "
+            fi
+            if ((i > x + 3)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i - 3))" " "
+            fi
+        done
+        # draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    else
+        # Player 2's bullet
+        for ((i = x; i > 0; i--)); do
+
+            printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
+
+            # add trail
+            if ((i < x - 1)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 1))" "$TRAIL1"
+            fi
+            if ((i < x - 2)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 2))" "$TRAIL2"
+            fi
+            if ((i < x - 3)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 3))" "$TRAIL3"
+            fi
+
+            # sleep animation
+            sleep 0.02 # figure out what number is best
+
+            # Erase the bullet by printing a space in the same spot
+            printf '\x1b[%d;%dH%s' "$y" "$i" " "
+            if ((i < x - 1)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 1))" " "
+            fi
+            if ((i < x - 2)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 2))" " "
+            fi
+            if ((i < x - 3)); then
+                printf '\x1b[%d;%dH%s' "$y" "$((i + 3))" " "
+            fi
+        done
+        # draw-tank "${left_tank_pos[@]}" "$L_TANK"
+    fi
+
+}
+
+# calculate parabolic motion
+
 ###########################################################################################
 # main game logic
 
@@ -287,12 +393,14 @@ main() {
     tput civis                      # hide cursor
     tput clear                      # clear to screen to menu
 
+    # Print initial menu
     print-menu
 
     tput clear # clear to screen to star game
 
     # draw obstacle
     draw-obstacles "$density"
+
     # draws initial state
     draw-tank "${left_tank_pos[@]}" "$L_TANK"
     draw-tank "${right_tank_pos[@]}" "$R_TANK"
@@ -314,7 +422,10 @@ main() {
         s | $'\x1b[B') if ((player % 2)); then ((l_angle > 0 ? l_angle-- : l_angle)); else ((r_angle > 0 ? r_angle-- : r_angle)); fi ;;
         m) if ((player % 2)); then ((l_power < MAX_POWER ? l_power++ : l_power)); else ((r_power < MAX_POWER ? r_power++ : r_power)); fi ;;
         l) if ((player % 2)); then ((l_power > MIN_POWER ? l_power-- : l_power)); else ((r_power > MIN_POWER ? r_power-- : r_power)); fi ;;
-        f | ' ') ((player++)) ;; # fire!
+        f | ' ')
+            if ((player % 2)); then fire-bullet "${left_tank_pos[@]}"; else fire-bullet "${right_tank_pos[@]}"; fi
+            ((player++))
+            ;; # fire!
         q) break ;;
         *) continue ;;
         esac
