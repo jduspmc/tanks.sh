@@ -28,6 +28,9 @@ Controls:
   Quit Game:       'q'
 ```
 
+Sound playback requires `aplay` (ALSA).
+Sound effects by [dklon](https://opengameart.org/content/boom-pack-2) (OpenGameArt, CC-BY 3.0).
+
 ## LICENCE
 
 [MIT](./LICENCE)

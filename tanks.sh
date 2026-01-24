@@ -247,86 +247,90 @@ move-tank-left() {
 
 # fires the bullet
 fire-bullet() {
-    local i j
-    local x=$1 # 11 from cursor
-    local y=$2 # actual y position of tank
+    local i
+    local x=$1
+    local y range tangent tank_shift
+    local -a pos_x
+    local -a pos_y
 
-    ((y = y + 1))
+    # BUG: divergences in trigonometric expressions
+    # BUG: sign of trigonometric expression
+    # BUG: speed depends on angle
+    # BUG: when bullet hist ceiling change is immediate at other side
+    # WARN: maybe implement time independently
 
-    if ((player % 2)); then ((x = x + 11)); else ((x = x + 3)); fi # adjust bullet initial position
-
-    if ((player % 2)); then # Player 1's bullet
-        for ((i = x; i < width; i++)); do
-            # check collision
-            collision "$i" "$y" || return # if there is a collision return
-
-            # Print the bullet
-            printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
-
-            # add trail
-            if ((i > x + 1)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 1))" "$TRAIL1"
-            fi
-            if ((i > x + 2)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 2))" "$TRAIL2"
-            fi
-            if ((i > x + 3)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 3))" "$TRAIL3"
-            fi
-
-            # sleep animation
-            sleep 0.015 # figure out what number is best
-
-            # Erase the bullet by printing a space in the same spot
-            printf '\x1b[%d;%dH%s' "$y" "$i" " "
-            if ((i > x + 1)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 1))" " "
-            fi
-            if ((i > x + 2)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 2))" " "
-            fi
-            if ((i > x + 3)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i - 3))" " "
-            fi
-        done
-        # draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    # calculate parabolic motion
+    if ((player % 2)); then
+        tank_shift=11 # this is cannon is not corner
+        range=$(bc -l <<<"$l_power*$l_power*s(2*$l_angle_rad)/$GRAVITY")
+        range=$(printf '%.0f' "$range")
+        tangent=$(bc -l <<<"s($l_angle_rad)/c($l_angle_rad)")
     else
-        # Player 2's bullet
-        for ((i = x; i > 0; i--)); do
+        tank_shift=3 # this is cannon is not corner
+        # calculate parabolic motion
+        range=$(bc -l <<<"$r_power*$l_power*s(2*$r_angle_rad)/$GRAVITY")
+        range=$(printf '%.0f' "$range")
+        tangent=$(bc -l <<<"s($r_angle_rad)/c($r_angle_rad)")
+    fi
 
-            # check collision
-            collision "$i" "$y" || return # if there is a collision return
+    echo "Range: $range" >>data.dat
 
-            printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
+    for ((i = 0; i <= width; i++)); do
+        # we only calculate until we reach left/right/floor
+        if ((i > 0 && pos_y[i - 1] > height - 2)); then break; fi
+
+        y=$(bc -l <<<"4 + $tangent*$i*(1-($i/$range))") # the +4 is because tank cannon is 4 lines above height
+        y=$(printf '%.0f' "$y")                         # turn into integer
+        if ((player % 2)); then
+            pos_x[i]=$((i + x + tank_shift))
+        else
+            pos_x[i]=$((x - i + tank_shift))
+        fi
+        pos_y[i]=$((height - y)) # here i have the positions of the parabola
+        if ((pos_x[i] >= width || pos_x[i] <= 0)); then break; fi
+        echo "$i - ${pos_x[i]} - ${pos_y[i]}" >>data.dat
+    done
+
+    for ((i = 0; i < ${#pos_x[@]}; i++)); do
+        # check collision
+        collision "${pos_x[i]}" "${pos_y[i]}" || return # if there is a collision return
+
+        # Print the bullet
+        if ((pos_y[i] > 0)); then
+            printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" "$BULLET"
 
             # add trail
-            if ((i < x - 1)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 1))" "$TRAIL1"
+            if ((i > 0)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" "$TRAIL1"
             fi
-            if ((i < x - 2)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 2))" "$TRAIL2"
+            if ((i > 1)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" "$TRAIL2"
             fi
-            if ((i < x - 3)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 3))" "$TRAIL3"
+            if ((i > 2)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" "$TRAIL3"
             fi
 
             # sleep animation
-            sleep 0.015 # figure out what number is best
+            sleep 0.05 # figure out what number is best
 
             # Erase the bullet by printing a space in the same spot
-            printf '\x1b[%d;%dH%s' "$y" "$i" " "
-            if ((i < x - 1)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 1))" " "
+            printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" " "
+            # remove trail
+            if ((i > 0)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" " "
             fi
-            if ((i < x - 2)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 2))" " "
+            if ((i > 1)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" " "
             fi
-            if ((i < x - 3)); then
-                printf '\x1b[%d;%dH%s' "$y" "$((i + 3))" " "
+            if ((i > 2)); then
+                printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" " "
             fi
-        done
-        # draw-tank "${left_tank_pos[@]}" "$L_TANK"
-    fi
+        else
+            sleep 0.05 # figure out what number is best
+        fi
+    done
+    # draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    # draw-tank "${left_tank_pos[@]}" "$L_TANK"
 }
 
 # collision logic
@@ -338,26 +342,18 @@ collision() {
     if [[ -v obstacles_array["$bullet_x,$bullet_y"] ]]; then
         explosion "$bullet_x" "$bullet_y"
         # update obstacle
-        if ((player % 2)); then
-            for ((i = bullet_x; i <= bullet_x + 2; i++)); do
-                for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
-                    unset 'obstacles_array["'"$i,$j"'"]'
-                done
+        for ((i = bullet_x - 2; i <= bullet_x + 2; i++)); do
+            for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
+                unset "obstacles_array[$i,$j]"
             done
-        else
-            for ((i = bullet_x - 2; i <= bullet_x; i++)); do
-                for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
-                    unset "obstacles_array[$i,$j]"
-                done
-            done
-        fi
+        done
         draw-obstacles
         return 1
     fi
 }
 
 # print explosions
-explosion() {
+explosion() { #TODO: implement explosion color
     local x=$1
     local y=$2
     local frame line row i j
@@ -378,35 +374,6 @@ explosion() {
 
 # calculate parabolic motion
 
-# i can calculate velocities vetical and horizontal. then i can calculate the position in x and y
-# via the formulas for parabolic motion. i think bet is pairs (x,y), where x changes by 1 up to maximum range.
-
-declare -a pos_x
-declare -a pos_y
-
-parabolic() {
-    local i j
-    local x=$1
-    local y range tangent tank_shift
-
-    if ((player % 2)); then tank_shift=10; else tank_shift=3; fi
-
-    range=$(bc -l <<<"$l_power*$l_power*s(2*$l_angle_rad)/$GRAVITY")
-    range=$(printf '%.0f' "$range")
-    tangent=$(bc -l <<<"s($l_angle_rad)/c($l_angle_rad)")
-    aplay ./sound/explosion_2.wav &>/dev/null &
-    for ((i = 0; i <= width; i++)); do
-        y=$(bc -l <<<"5 + $tangent*$i*(1-($i/$range))")
-        y=$(printf '%.0f' "$y")
-        pos_x[i]=$((i + x + $tank_shift))
-        pos_y[i]=$((height - y))
-        if ((i > 3 && pos_y[i] > height - 2)); then break; fi
-        tput cup "${pos_y[$i]}" "${pos_x[i]}"
-        ((pos_y[i] < 0)) || printf '%s' 'O'
-        sleep 0.01
-    done
-}
-
 ###########################################################################################
 # global variables
 
@@ -425,8 +392,8 @@ area1=$((width / 3))
 area2=$((2 * width / 3))
 
 # initial tank position
-left_tank_pos=(1 $((height - 5)))
-right_tank_pos=($((width - 14)) $((height - 5)))
+left_tank_pos=(0 $((height - 5)))
+right_tank_pos=($((width - 13)) $((height - 5)))
 
 # initial quantities
 l_angle=45
@@ -468,7 +435,6 @@ main() {
     print-menu
 
     tput clear # clear to screen to star game
-    parabolic "${left_tank_pos[0]}"
 
     # draw obstacle
     set-obstacles "$density"
@@ -480,7 +446,7 @@ main() {
 
     while true; do
         draw-info "$l_angle" "$l_power" "0"
-        draw-info "$r_angle" "$r_power" $((width - 22))
+        draw-info "$r_angle" "$r_power" $((width - 23))
 
         read -rsn1 key
         if [[ $key == $'\x1b' ]]; then
@@ -494,21 +460,22 @@ main() {
         a | $'\x1b[D') move-tank-left ;;
         d | $'\x1b[C') move-tank-right ;;
         w | $'\x1b[A') if ((player % 2)); then
-            ((l_angle < 180 ? l_angle++ : l_angle))
+            ((l_angle < MAX_ANGLE ? l_angle++ : l_angle))
             l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
         else
-            ((r_angle < 180 ? r_angle++ : r_angle))
+            ((r_angle < MAX_ANGLE ? r_angle++ : r_angle))
             r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
         fi ;;
         s | $'\x1b[B') if ((player % 2)); then
-            ((l_angle > 0 ? l_angle-- : l_angle))
+            ((l_angle > MIN_ANGLE ? l_angle-- : l_angle))
             l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
         else
-            ((r_angle > 0 ? r_angle-- : r_angle))
+            ((r_angle > MIN_ANGLE ? r_angle-- : r_angle))
             r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
         fi ;;
         f | ' ')
-            if ((player % 2)); then fire-bullet "${left_tank_pos[@]}"; else fire-bullet "${right_tank_pos[@]}"; fi
+            aplay ./sound/explosion_2.wav &>/dev/null &
+            if ((player % 2)); then fire-bullet "${left_tank_pos[0]}"; else fire-bullet "${right_tank_pos[0]}"; fi
             ((player++))
             ;; # fire!
         q) break ;;

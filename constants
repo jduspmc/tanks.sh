@@ -10,9 +10,9 @@ STTY_ORIG=$(stty -g)
 IFS= # set ifs to null
 
 # color constants
-COL_L_TANK=$'\x1b[38;5;28m'
-COL_R_TANK=$'\x1b[38;5;124m'
-COL_OBSTACLE=$'\x1b[38;5;44m'
+COL_L_TANK=$'\x1b[38;5;21m'
+COL_R_TANK=$'\x1b[38;5;1m'
+COL_OBSTACLE=$'\x1b[38;5;34m'
 BB_ON_W=$'\x1b[1;38;5;0;48;5;15m'
 COL_PROJECTILE=$'\x1b[38;5;196m'
 COL_TRAIL1=$'\x1b[38;5;208m'
@@ -85,3 +85,6 @@ GRAVITY=20
 # power constants (initial projectile velocity)
 MAX_POWER=100
 MIN_POWER=20
+
+MAX_ANGLE=170
+MIN_ANGLE=10
