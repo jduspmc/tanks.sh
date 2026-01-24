@@ -257,6 +257,9 @@ fire-bullet() {
 
     if ((player % 2)); then # Player 1's bullet
         for ((i = x; i < width; i++)); do
+            # check collision
+            collision "$i" "$y" || return # if there is a collision return
+
             # Print the bullet
             printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
 
@@ -290,6 +293,9 @@ fire-bullet() {
     else
         # Player 2's bullet
         for ((i = x; i > 0; i--)); do
+
+            # check collision
+            collision "$i" "$y" || return # if there is a collision return
 
             printf '\x1b[%d;%dH%s' "$y" "$i" "$BULLET"
 
@@ -330,15 +336,44 @@ collision() {
     local bullet_x=$1
     local bullet_y=$2
     if [[ -v obstacles_array["$bullet_x,$bullet_y"] ]]; then
-        explosion "$" "$" #   explosion
+        explosion "$bullet_x" "$bullet_y"
+        # update obstacle
+        if ((player % 2)); then
+            for ((i = bullet_x; i <= bullet_x + 2; i++)); do
+                for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
+                    unset 'obstacles_array["'"$i,$j"'"]'
+                done
+            done
+        else
+            for ((i = bullet_x - 2; i <= bullet_x; i++)); do
+                for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
+                    unset 'obstacles_array["'"$i,$j"'"]'
+                done
+            done
+        fi
+        draw-obstacles
+
+        return 1
     fi
 }
 
 explosion() {
-
-    for fr in "${EX_ARR[@]}"; do
-        tput
-        printf '%s' "$fr"
+    local x=$1
+    local y=$2
+    local frame line row i j
+    local mv_frame_v=0
+    local mv_frame_h=0
+    # if ((player % 2)); then
+    for frame in "${EX_ARR[@]}"; do
+        row=$((y - 1))
+        while read -r line; do
+            tput cup "$((row + mv_frame_v))" "$((x + mv_frame_h - 1))"
+            printf '%s' "$line"
+            ((row++))
+        done <<<"$frame"
+        ((mv_frame_v--))
+        ((mv_frame_h--))
+        sleep 0.07
     done
 }
 
