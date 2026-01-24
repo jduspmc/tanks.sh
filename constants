@@ -96,6 +96,19 @@ read -r -d '' FRAME6 <<-"EOF"
 EOF
 FRAME6=$COL_EXPLOSION$FRAME6$COL_NONE
 
+read -r -d '' FRAME7 <<-"EOF"
+   ⋅⋅⋅⋅⋅⋅⋅⋅
+  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
+ ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
+⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
+ ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
+  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
+   ⋅⋅⋅⋅⋅⋅⋅⋅
+EOF
+FRAME7=$COL_EXPLOSION$FRAME7$COL_NONE
+
+EX_ARR=("$FRAME0" "$FRAME1" "$FRAME2" "$FRAME3" "$FRAME4" "$FRAME5" "$FRAME6" "$FRAME7")
+
 # obstacle character
 OBSTACLE="${COL_OBSTACLE}X$COL_NONE"
 
@@ -104,6 +117,9 @@ BULLET="${COL_PROJECTILE}@$COL_NONE"
 TRAIL1="${COL_TRAIL1}*$COL_NONE"
 TRAIL2="${COL_TRAIL2}*$COL_NONE"
 TRAIL3="${COL_TRAIL3}*$COL_NONE"
+
+# angle constants
+PI=3.141592626
 
 # power constants (initial projectile velocity)
 MAX_POWER=100
