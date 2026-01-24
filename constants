@@ -18,7 +18,7 @@ COL_PROJECTILE=$'\x1b[38;5;196m'
 COL_TRAIL1=$'\x1b[38;5;208m'
 COL_TRAIL2=$'\x1b[38;5;220m'
 COL_TRAIL3=$'\x1b[38;5;226m'
-COL_EXPLOSION=$'\x1b[38;5;247m'
+COL_EXPLOSION=$'\x1b[38;5;0m\e[48;5;0m'
 COL_NONE=$(tput sgr0)
 
 # left tank
@@ -42,72 +42,31 @@ R_TANK=$COL_R_TANK$R_TANK$COL_NONE
 # explosion frames
 
 read -r -d '' FRAME0 <<-"EOF"
-⋅⋅
+⋅
 EOF
 FRAME0=$COL_EXPLOSION$FRAME0$COL_NONE
 
 read -r -d '' FRAME1 <<-"EOF"
- ⋅
 ⋅⋅⋅
- ⋅
+⋅⋅⋅
+⋅⋅⋅
 EOF
+
 FRAME1=$COL_EXPLOSION$FRAME1$COL_NONE
 
 read -r -d '' FRAME2 <<-"EOF"
- ⋅⋅
-⋅⋅⋅⋅
- ⋅⋅
+⋅⋅⋅⋅⋅
+⋅⋅⋅⋅⋅
+⋅⋅⋅⋅⋅
+⋅⋅⋅⋅⋅
+⋅⋅⋅⋅⋅
 EOF
 FRAME2=$COL_EXPLOSION$FRAME2$COL_NONE
-
-read -r -d '' FRAME3 <<-"EOF"
- ⋅⋅⋅
-⋅⋅⋅⋅⋅
- ⋅⋅⋅
-EOF
-FRAME3=$COL_EXPLOSION$FRAME3$COL_NONE
-
-read -r -d '' FRAME4 <<-"EOF"
-    ⋅⋅
-  ⋅⋅⋅⋅⋅⋅
-⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅
-    ⋅⋅
-EOF
-FRAME4=$COL_EXPLOSION$FRAME4$COL_NONE
-
-read -r -d '' FRAME5 <<-"EOF"
-    ⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅
-⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅
-    ⋅⋅⋅⋅
-EOF
-FRAME5=$COL_EXPLOSION$FRAME5$COL_NONE
-
-read -r -d '' FRAME6 <<-"EOF"
-     ⋅⋅⋅⋅⋅
-    ⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-    ⋅⋅⋅⋅⋅⋅⋅
-     ⋅⋅⋅⋅⋅
-EOF
-FRAME6=$COL_EXPLOSION$FRAME6$COL_NONE
-
-read -r -d '' FRAME7 <<-"EOF"
-   ⋅⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
- ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
- ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-  ⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅
-   ⋅⋅⋅⋅⋅⋅⋅⋅
-EOF
-FRAME7=$COL_EXPLOSION$FRAME7$COL_NONE
-
-EX_ARR=("$FRAME0" "$FRAME1" "$FRAME2" "$FRAME3" "$FRAME4" "$FRAME5" "$FRAME6" "$FRAME7")
+#
+EX_ARR=("$FRAME0"
+    "$FRAME1"
+    "$FRAME2"
+)
 
 # obstacle character
 OBSTACLE="${COL_OBSTACLE}X$COL_NONE"

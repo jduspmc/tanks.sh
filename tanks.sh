@@ -352,7 +352,6 @@ collision() {
             done
         fi
         draw-obstacles
-
         return 1
     fi
 }
@@ -363,7 +362,6 @@ explosion() {
     local frame line row i j
     local mv_frame_v=0
     local mv_frame_h=0
-    # if ((player % 2)); then
     for frame in "${EX_ARR[@]}"; do
         row=$((y - 1))
         while read -r line; do
@@ -373,7 +371,7 @@ explosion() {
         done <<<"$frame"
         ((mv_frame_v--))
         ((mv_frame_h--))
-        sleep 0.07
+        sleep 0.06
     done
 }
 
@@ -439,7 +437,7 @@ main() {
 
     # draw obstacle
     set-obstacles "$density"
-    draw-obstacles "$density"
+    draw-obstacles
 
     # draws initial state
     draw-tank "${left_tank_pos[@]}" "$L_TANK"
