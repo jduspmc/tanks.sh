@@ -78,7 +78,9 @@ TRAIL2="${COL_TRAIL2}*$COL_NONE"
 TRAIL3="${COL_TRAIL3}*$COL_NONE"
 
 # angle constants
-PI=3.141592626
+PI=$(echo "scale=10; 4*a(1)" | bc -l)
+# gravity
+GRAVITY=20
 
 # power constants (initial projectile velocity)
 MAX_POWER=100

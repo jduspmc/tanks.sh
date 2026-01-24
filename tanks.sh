@@ -347,7 +347,7 @@ collision() {
         else
             for ((i = bullet_x - 2; i <= bullet_x; i++)); do
                 for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
-                    unset 'obstacles_array["'"$i,$j"'"]'
+                    unset "obstacles_array[$i,$j]"
                 done
             done
         fi
@@ -356,6 +356,7 @@ collision() {
     fi
 }
 
+# print explosions
 explosion() {
     local x=$1
     local y=$2
@@ -377,6 +378,35 @@ explosion() {
 
 # calculate parabolic motion
 
+# i can calculate velocities vetical and horizontal. then i can calculate the position in x and y
+# via the formulas for parabolic motion. i think bet is pairs (x,y), where x changes by 1 up to maximum range.
+
+declare -a pos_x
+declare -a pos_y
+
+parabolic() {
+    local i j
+    local x=$1
+    local y range tangent tank_shift
+
+    if ((player % 2)); then tank_shift=10; else tank_shift=3; fi
+
+    range=$(bc -l <<<"$l_power*$l_power*s(2*$l_angle_rad)/$GRAVITY")
+    range=$(printf '%.0f' "$range")
+    tangent=$(bc -l <<<"s($l_angle_rad)/c($l_angle_rad)")
+    aplay ./sound/explosion_2.wav &>/dev/null &
+    for ((i = 0; i <= width; i++)); do
+        y=$(bc -l <<<"5 + $tangent*$i*(1-($i/$range))")
+        y=$(printf '%.0f' "$y")
+        pos_x[i]=$((i + x + $tank_shift))
+        pos_y[i]=$((height - y))
+        if ((i > 3 && pos_y[i] > height - 2)); then break; fi
+        tput cup "${pos_y[$i]}" "${pos_x[i]}"
+        ((pos_y[i] < 0)) || printf '%s' 'O'
+        sleep 0.01
+    done
+}
+
 ###########################################################################################
 # global variables
 
@@ -384,8 +414,8 @@ explosion() {
 player=1
 
 # find playable size
-height=$(($(tput lines) - 3))
-width=$(($(tput cols) - 2))
+height=$(($(tput lines) - 1))
+width=$(($(tput cols)))
 # ensure playable area divisible by 3
 width=$((width - width % 3))
 
@@ -397,11 +427,15 @@ area2=$((2 * width / 3))
 # initial tank position
 left_tank_pos=(1 $((height - 5)))
 right_tank_pos=($((width - 14)) $((height - 5)))
-# initial state
+
+# initial quantities
 l_angle=45
 r_angle=45
-l_power=50
-r_power=50
+l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
+r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
+
+l_power=30
+r_power=30
 density=50
 
 # declare obstacle array
@@ -434,6 +468,7 @@ main() {
     print-menu
 
     tput clear # clear to screen to star game
+    parabolic "${left_tank_pos[0]}"
 
     # draw obstacle
     set-obstacles "$density"
