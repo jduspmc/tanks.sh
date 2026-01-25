@@ -7,11 +7,43 @@
 . ./constants
 
 ###########################################################################################
+# global variables
+
+# player turn
+player=1
+
+# find playable size
+height=$(($(tput lines) - 1))
+width=$(($(tput cols)))
+# ensure playable area divisible by 3
+width=$((width - width % 3))
+
+# playable area sections
+area1=$((width / 3))
+area2=$((2 * width / 3))
+
+# initial tank position
+left_tank_pos=(0 $((height - TANK_HEIGHT)))
+right_tank_pos=($((width - TANK_LEN)) $((height - TANK_HEIGHT)))
+
+# initial quantities
+l_angle=45
+r_angle=45
+l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
+r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
+
+l_power=40
+r_power=40
+density=50
+
+# declare obstacle array
+declare -A obstacles_array
+
+###########################################################################################
 # Functions
 
 # tput wrapper taken and modified from https://github.com/bahamas10/bash-tput (that guy is awesome)
 tput() {
-
     local opt OPTIND OPTARG
     while getopts 'ST:' opt; do
         case "$opt" in
@@ -64,7 +96,7 @@ tput() {
 cleanup() {
     tput cnorm        # restore cursor
     tput rmcup        # go back to primary screen
-    stty "$STTY_ORIG" # restore stty
+    stty "$STTY_ORIG" # restore
 }
 
 # set obstacles
@@ -111,6 +143,7 @@ screen-too-small() {
     fi
 }
 
+# don't want to deal with resizing. Maybe later
 check-resize() {
     cleanup
     echo ""
@@ -120,7 +153,7 @@ check-resize() {
 
 # prints menu and sets density
 print-menu() {
-    local col_1 col_2 col_3
+    local -a item_col
     local number=0
 
     # game instructions
@@ -136,23 +169,13 @@ print-menu() {
     printf '\x1b[%d;%dH%s' "$((height / 7 + 10))" "$((width / 7))" "Quit Game:       'q'"
 
     while true; do
-        if ((number % 3 == 0)); then
-            col_1=$BB_ON_W
-            col_2=
-            col_3=
-        elif ((number % 3 == 1)); then
-            col_1=
-            col_2=$BB_ON_W
-            col_3=
-        else
-            col_1=
-            col_2=
-            col_3=$BB_ON_W
-        fi
+        unset item_col
+        item_col[number % 3]=$BB_ON_W
+
         printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 5))" "Select obstacle density (press 'q' to exit)"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 1))" "$((width / 5 + 1))" "${col_1}Easy$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 2))" "$((width / 5 + 1))" "${col_2}Normal$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 3))" "$((width / 5 + 1))" "${col_3}Hard$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((height / 2 + 1))" "$((width / 5 + 1))" "${item_col[0]}Easy$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((height / 2 + 2))" "$((width / 5 + 1))" "${item_col[1]}Normal$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((height / 2 + 3))" "$((width / 5 + 1))" "${item_col[2]}Hard$COL_NONE"
 
         read -rsn1 key
         if [[ $key == $'\x1b' ]]; then
@@ -160,18 +183,21 @@ print-menu() {
             key+="$key2"
         fi
         case "$key" in
-        w | $'\x1b[A') ((number--)) ;;
+        w | $'\x1b[A') ((number += 2)) ;;
         s | $'\x1b[B') ((number++)) ;;
         '') break ;;
-        q) exit 0 ;;
+        q)
+            cleanup
+            exit 0
+            ;;
         *) continue ;;
         esac
         if ((number % 3 == 0)); then
-            density=50
+            density=$MIN_DENS
         elif ((number % 3 == 1)); then
-            density=20
+            density=$MED_DENS
         else
-            density=1
+            density=$MAX_DENS
         fi
     done
 }
@@ -208,15 +234,14 @@ draw-info() {
     local angle=$1
     local power=$2
     local x=$3
-    tput cup $((height - 1)) "$x"
-    # printf "Angle: %3d° - Power: %3d   " "$angle" "$power"
+    tput cup $((height)) "$x"
     printf "Angle: %d° - Power: %d\e[K" "$angle" "$power"
 }
 
 # move a tank to the right
 move-tank-right() {
-    local area_left=$((area1 - tank_len))
-    local area_right=$((width - tank_len))
+    local area_left=$((area1 - TANK_LEN))
+    local area_right=$((width - TANK_LEN))
     if ((player % 2)); then
         if ((left_tank_pos[0] == area_left)); then return; fi # make sure tank does not leave area
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
@@ -248,102 +273,70 @@ move-tank-left() {
 # fires the bullet
 fire-bullet() {
     local i
-    local x=$1
-    local y range tangent tank_shift
+    local xinit=$1
+    local yinit=$(($2 + TANK_HEIGHT))
+    local tank_shift
     local -a pos_x
     local -a pos_y
 
-    # BUG: divergences in trigonometric expressions
-    # BUG: sign of trigonometric expression
-    # BUG: speed depends on angle
-    # BUG: when bullet hist ceiling change is immediate at other side
-    # WARN: maybe implement time independently
+    local v_x
+    local v_y
 
-    # calculate parabolic motion
     if ((player % 2)); then
-        tank_shift=11 # this is cannon is not corner
-        range=$(bc -l <<<"$l_power*$l_power*s(2*$l_angle_rad)/$GRAVITY")
-        range=$(printf '%.0f' "$range")
-        tangent=$(bc -l <<<"s($l_angle_rad)/c($l_angle_rad)")
+        tank_shift=11 # cannon is not corner
+        v_x=$(bc -l <<<"$l_power*c($l_angle_rad)")
+        v_y=$(bc -l <<<"$l_power*s($l_angle_rad)")
     else
-        tank_shift=3 # this is cannon is not corner
-        # calculate parabolic motion
-        range=$(bc -l <<<"$r_power*$l_power*s(2*$r_angle_rad)/$GRAVITY")
-        range=$(printf '%.0f' "$range")
-        tangent=$(bc -l <<<"s($r_angle_rad)/c($r_angle_rad)")
+        tank_shift=3 # cannon is not corner
+        v_x=$(bc -l <<<"0 - $r_power*c($r_angle_rad)")
+        v_y=$(bc -l <<<"$r_power*s($r_angle_rad)")
     fi
 
-    echo "Range: $range" >>data.dat
-
-    for ((i = 0; i <= width; i++)); do
-        # we only calculate until we reach left/right/floor
-        if ((i > 0 && pos_y[i - 1] > height - 2)); then break; fi
-
-        y=$(bc -l <<<"4 + $tangent*$i*(1-($i/$range))") # the +4 is because tank cannon is 4 lines above height
-        y=$(printf '%.0f' "$y")                         # turn into integer
-        if ((player % 2)); then
-            pos_x[i]=$((i + x + tank_shift))
-        else
-            pos_x[i]=$((x - i + tank_shift))
-        fi
-        pos_y[i]=$((height - y)) # here i have the positions of the parabola
+    aplay ./sound/explosion_2.wav &>/dev/null & # play sound
+    for ((i = 0; i <= TIME_LEN; i++)); do
+        pos_x[i]=$(bc -l <<<"$tank_shift+$xinit+$v_x*${TIME_ARR[$i]}")
+        pos_x[i]=$(printf '%.0f' "${pos_x[i]}") # turn into integer
+        pos_y[i]=$(bc -l <<<"$height - ($yinit + $v_y*${TIME_ARR[$i]} - 0.5*$GRAVITY*(${TIME_ARR[$i]})^2)")
+        pos_y[i]=$(printf '%.0f' "${pos_y[i]}")
+        if ((pos_y[i] > height - 1)); then break; fi
         if ((pos_x[i] >= width || pos_x[i] <= 0)); then break; fi
-        echo "$i - ${pos_x[i]} - ${pos_y[i]}" >>data.dat
-    done
-
-    for ((i = 0; i < ${#pos_x[@]}; i++)); do
+        # echo "$i - ${pos_x[i]} - ${pos_y[i]}" >>data.dat
         # check collision
         collision "${pos_x[i]}" "${pos_y[i]}" || return # if there is a collision return
+        tank-collision "${pos_x[i]}" "${pos_y[i]}"      # if there is a collision with tank and end
 
         # Print the bullet
-        if ((pos_y[i] > 0)); then
-            printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" "$BULLET"
+        ((pos_y[i] > 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" "$BULLET"
+        # add trail
+        ((i > 0 && pos_y[i - 1] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" "$TRAIL1"
+        ((i > 1 && pos_y[i - 2] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" "$TRAIL2"
+        ((i > 2 && pos_y[i - 3] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" "$TRAIL3"
 
-            # add trail
-            if ((i > 0)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" "$TRAIL1"
-            fi
-            if ((i > 1)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" "$TRAIL2"
-            fi
-            if ((i > 2)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" "$TRAIL3"
-            fi
+        # sleep animation
+        sleep 0.015 # figure out what number is best
 
-            # sleep animation
-            sleep 0.05 # figure out what number is best
-
-            # Erase the bullet by printing a space in the same spot
-            printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" " "
-            # remove trail
-            if ((i > 0)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" " "
-            fi
-            if ((i > 1)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" " "
-            fi
-            if ((i > 2)); then
-                printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" " "
-            fi
-        else
-            sleep 0.05 # figure out what number is best
-        fi
+        # Erase the bullet by printing a space in the same spot
+        ((pos_y[i] > 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" " "
+        # remove trail
+        ((i > 0 && pos_y[i - 1] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 1]}" "${pos_x[i - 1]}" " "
+        ((i > 1 && pos_y[i - 2] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" " "
+        ((i > 2 && pos_y[i - 3] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" " "
     done
-    # draw-tank "${right_tank_pos[@]}" "$R_TANK"
-    # draw-tank "${left_tank_pos[@]}" "$L_TANK"
+    draw-tank "${right_tank_pos[@]}" "$R_TANK"
+    draw-tank "${left_tank_pos[@]}" "$L_TANK"
 }
 
 # collision logic
-
-# take bullet current position. check if there is obstacle. trigger explosion.
+# collision with obstacle
 collision() {
-    local bullet_x=$1
-    local bullet_y=$2
-    if [[ -v obstacles_array["$bullet_x,$bullet_y"] ]]; then
-        explosion "$bullet_x" "$bullet_y"
+    local blt_x=$1
+    local blt_y=$2
+    if [[ -v obstacles_array["$blt_x,$blt_y"] ]]; then
+        aplay ./sound/explosion_4.wav &>/dev/null & # play sound
+        explosion "$blt_x" "$blt_y"
         # update obstacle
-        for ((i = bullet_x - 2; i <= bullet_x + 2; i++)); do
-            for ((j = bullet_y - 2; j <= bullet_y + 2; j++)); do
+        for ((i = blt_x - 2; i <= blt_x + 2; i++)); do
+            for ((j = blt_y - 2; j <= blt_y + 2; j++)); do
                 unset "obstacles_array[$i,$j]"
             done
         done
@@ -352,8 +345,60 @@ collision() {
     fi
 }
 
+# collision bullet-tank
+tank-collision() {
+    local blt_x=$1
+    local blt_y=$2
+
+    # if bullet is where tank is then explosion.
+    if ((blt_y > height - 5)); then
+        if ((blt_x >= right_tank_pos[0] && blt_x <= right_tank_pos[0] + TANK_LEN)); then
+            aplay ./sound/mechanical_explosion.wav &>/dev/null &
+            explosion "$blt_x" "$blt_y"
+            if ((player % 2)); then
+                # win condition
+                win 1
+            else
+                # suicide
+                lose 2
+            fi
+        fi
+        if ((blt_x >= left_tank_pos[0] && blt_x <= left_tank_pos[0] + TANK_LEN)); then
+            aplay ./sound/mechanical_explosion.wav &>/dev/null &
+            explosion "$blt_x" "$blt_y"
+            if ((player % 2)); then
+                # suicide
+                lose 1
+            else
+                # win condition
+                win 2
+            fi
+        fi
+    fi
+}
+
+win() {
+    local msg
+    msg="Player $1 wins!"
+    tput clear
+    printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 2 - ${#msg}))" "$msg"
+    sleep 2
+    cleanup
+    exit 0
+}
+
+lose() {
+    local msg
+    msg="Player $1 killed himself!"
+    tput clear
+    printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 2 - ${#msg}))" "$msg"
+    sleep 2
+    cleanup
+    exit 0
+}
+
 # print explosions
-explosion() { #TODO: implement explosion color
+explosion() {
     local x=$1
     local y=$2
     local frame line row i j
@@ -370,43 +415,13 @@ explosion() { #TODO: implement explosion color
         ((mv_frame_h--))
         sleep 0.06
     done
+    row=$((y - 1))
+    while read -r line; do
+        tput cup "$((row + mv_frame_v + 1))" "$((x + mv_frame_h))"
+        printf '%s' "$line"
+        ((row++))
+    done <<<"$H_FRAME"
 }
-
-# calculate parabolic motion
-
-###########################################################################################
-# global variables
-
-# player turn
-player=1
-
-# find playable size
-height=$(($(tput lines) - 1))
-width=$(($(tput cols)))
-# ensure playable area divisible by 3
-width=$((width - width % 3))
-
-# playable area sections
-tank_len=13
-area1=$((width / 3))
-area2=$((2 * width / 3))
-
-# initial tank position
-left_tank_pos=(0 $((height - 5)))
-right_tank_pos=($((width - 13)) $((height - 5)))
-
-# initial quantities
-l_angle=45
-r_angle=45
-l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
-r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
-
-l_power=30
-r_power=30
-density=50
-
-# declare obstacle array
-declare -A obstacles_array
 
 ###########################################################################################
 # main game logic
@@ -474,7 +489,6 @@ main() {
             r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
         fi ;;
         f | ' ')
-            aplay ./sound/explosion_2.wav &>/dev/null &
             if ((player % 2)); then fire-bullet "${left_tank_pos[0]}"; else fire-bullet "${right_tank_pos[0]}"; fi
             ((player++))
             ;; # fire!

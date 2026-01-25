@@ -18,7 +18,8 @@ COL_PROJECTILE=$'\x1b[38;5;196m'
 COL_TRAIL1=$'\x1b[38;5;208m'
 COL_TRAIL2=$'\x1b[38;5;220m'
 COL_TRAIL3=$'\x1b[38;5;226m'
-COL_EXPLOSION=$'\x1b[38;5;0m\e[48;5;0m'
+COL_EXPLOSION=$'\x1b[38;5;245m'
+COL_HIDDEN_EXPLOSION=$'\x1b[38;5;0m\e[48;5;0m'
 COL_NONE=$(tput sgr0)
 
 # left tank
@@ -39,8 +40,11 @@ __/_______\__
 EOF
 R_TANK=$COL_R_TANK$R_TANK$COL_NONE
 
-# explosion frames
+# tank dimensions
+TANK_LEN=13
+TANK_HEIGHT=4
 
+# explosion frames
 read -r -d '' FRAME0 <<-"EOF"
 ⋅
 EOF
@@ -61,8 +65,10 @@ read -r -d '' FRAME2 <<-"EOF"
 ⋅⋅⋅⋅⋅
 ⋅⋅⋅⋅⋅
 EOF
+H_FRAME=$FRAME2
 FRAME2=$COL_EXPLOSION$FRAME2$COL_NONE
-#
+H_FRAME=$COL_HIDDEN_EXPLOSION$H_FRAME$COL_NONE
+
 EX_ARR=("$FRAME0"
     "$FRAME1"
     "$FRAME2"
@@ -77,14 +83,29 @@ TRAIL1="${COL_TRAIL1}*$COL_NONE"
 TRAIL2="${COL_TRAIL2}*$COL_NONE"
 TRAIL3="${COL_TRAIL3}*$COL_NONE"
 
+# obstacle density settings
+MAX_DENS=1
+MED_DENS=25
+MIN_DENS=50
+
 # angle constants
 PI=$(echo "scale=10; 4*a(1)" | bc -l)
+
 # gravity
-GRAVITY=20
+GRAVITY=30
 
 # power constants (initial projectile velocity)
-MAX_POWER=100
+MAX_POWER=110
 MIN_POWER=20
 
-MAX_ANGLE=170
-MIN_ANGLE=10
+MAX_ANGLE=180
+MIN_ANGLE=0
+
+TIME_LEN=300
+DELTA=0.025
+
+declare -a TIME_ARR
+
+for ((k = 0; k <= TIME_LEN; k++)); do
+    TIME_ARR[k]+=$(bc -l <<<"$k*$DELTA")
+done
