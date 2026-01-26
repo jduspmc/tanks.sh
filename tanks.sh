@@ -13,8 +13,8 @@
 player=1
 
 # find playable size
-height=$(($(tput lines) - 1))
-width=$(($(tput cols)))
+height=$(tput lines)
+width=$(tput cols)
 # ensure playable area divisible by 3
 width=$((width - width % 3))
 
@@ -23,8 +23,8 @@ area1=$((width / 3))
 area2=$((2 * width / 3))
 
 # initial tank position
-left_tank_pos=(0 $((height - TANK_HEIGHT)))
-right_tank_pos=($((width - TANK_LEN)) $((height - TANK_HEIGHT)))
+left_tank_pos=($((area1 / 3)) $((height - TANK_HEIGHT)))
+right_tank_pos=($((5 * area1 / 2)) $((height - TANK_HEIGHT)))
 
 # initial quantities
 l_angle=45
@@ -42,60 +42,10 @@ declare -A obstacles_array
 ###########################################################################################
 # Functions
 
-# tput wrapper taken and modified from https://github.com/bahamas10/bash-tput (that guy is awesome)
-tput() {
-    local opt OPTIND OPTARG
-    while getopts 'ST:' opt; do
-        case "$opt" in
-        S)
-            command tput "$@"
-            return $?
-            ;;
-        T) true ;;
-        *) exit 2 ;;
-        esac
-    done
-    shift "$((OPTIND - 1))"
-
-    local ESC=$'\x1b'
-
-    case "$1" in
-    bel) printf '%s' $'\x7' ;;
-    sgr0 | me) printf '%s' "${ESC}[0m" ;;
-    bold) printf '%s' "${ESC}[1m" ;;
-    dim) printf '%s' "${ESC}[2m" ;;
-    rev) printf '%s' "${ESC}[7m" ;;
-    blink) printf '%s' "${ESC}[5m" ;;
-    setaf | AF) printf '%s' "${ESC}[38;5;$2m" ;;
-    setab | AB) printf '%s' "${ESC}[48;5;$2m" ;;
-    sc) printf '%s' "${ESC}7" ;;
-    rc) printf '%s' "${ESC}8" ;;
-    cnorm) printf '%s' "${ESC}[?25h" ;;
-    civis) printf '%s' "${ESC}[?25l" ;;
-    smcup) printf '%s' "${ESC}[?1049h" ;;
-    rmcup) printf '%s' "${ESC}[?1049l" ;;
-    clear) printf '%s%s' "${ESC}[H" "${ESC}[2J" ;;
-    home) printf '%s' "${ESC}[H" ;;
-    cuu) printf '%s' "${ESC}[$2A" ;;
-    cud) printf '%s' "${ESC}[$2B" ;;
-    cuf) printf '%s' "${ESC}[$2C" ;;
-    cub) printf '%s' "${ESC}[$2D" ;;
-    cup)
-        local row=$(($2 + 1))
-        local col=$(($3 + 1))
-        printf '%s[%d;%dH' "$ESC" "$row" "$col"
-        ;;
-    *)
-        command tput "$@"
-        return $?
-        ;;
-    esac
-}
-
 # Clean up screen at exit
 cleanup() {
-    tput cnorm        # restore cursor
-    tput rmcup        # go back to primary screen
+    printf "\x1b[?25h"
+    printf "\x1b[?1049l"
     stty "$STTY_ORIG" # restore
 }
 
@@ -135,7 +85,6 @@ draw-obstacles() {
 # if screen too small we can't play
 screen-too-small() {
     if ((width < 60 || height < 24)); then
-        cleanup
         echo ""
         echo "Terminal is too small to play." >&2
         echo "Please resize to at least 60 columns and 24 lines and try again." >&2
@@ -155,27 +104,23 @@ check-resize() {
 print-menu() {
     local -a item_col
     local number=0
+    local line
+    local y=0
 
     # game instructions
-    printf '\x1b[%d;%dH%s' "$((height / 7))" "$((width / 7))" "The objective is to destroy the enemy tank."
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 2))" "$((width / 7))" "Controls:"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 3))" "$((width / 7))" "Move Tank:       'a' or Left Arrow (move left)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 4))" "$((width / 7))" "                 'd' or Right Arrow (move right)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 5))" "$((width / 7))" "Adjust Angle:    'w' or Up Arrow (increase angle)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 6))" "$((width / 7))" "                 's' or Down Arrow (decrease angle)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 7))" "$((width / 7))" "Adjust Power:    'm' (increase power)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 8))" "$((width / 7))" "                 'l' (decrease power)"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 9))" "$((width / 7))" "Fire Projectile: 'f' or Spacebar"
-    printf '\x1b[%d;%dH%s' "$((height / 7 + 10))" "$((width / 7))" "Quit Game:       'q'"
+    while read -r line; do
+        printf '\x1b[%d;%dH%s' "$((height / 7 + y))" "$((width / 7))" "$line"
+        ((y++))
+    done <<<"$TUTORIAL"
 
     while true; do
         unset item_col
         item_col[number % 3]=$BB_ON_W
 
-        printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 5))" "Select obstacle density (press 'q' to exit)"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 1))" "$((width / 5 + 1))" "${item_col[0]}Easy$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 2))" "$((width / 5 + 1))" "${item_col[1]}Normal$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((height / 2 + 3))" "$((width / 5 + 1))" "${item_col[2]}Hard$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3))" "$((width / 5))" "Select obstacle density (press 'q' to exit)"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 1))" "$((width / 5 + 1))" "${item_col[0]}Easy$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 2))" "$((width / 5 + 1))" "${item_col[1]}Normal$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 3))" "$((width / 5 + 1))" "${item_col[2]}Hard$COL_NONE"
 
         read -rsn1 key
         if [[ $key == $'\x1b' ]]; then
@@ -208,8 +153,7 @@ draw-tank() {
     local y=$2
     local tank=$3
     while read -r line; do
-        tput cup "$y" "$x"
-        printf '%s' "$line"
+        printf '\x1b[%d;%dH%s' "$y" "$x" "$line"
         ((y++))
     done <<<"$tank"
 }
@@ -218,14 +162,10 @@ draw-tank() {
 delete-tank() {
     local x=$1
     local y=$2
-    local tank=$3
-    local lines=4 # number of lines in tank
-
-    # overwrite each line with spaces
     local i
-    for ((i = 0; i < lines; i++)); do
-        tput cup $((y + i)) "$x"
-        printf '%*s' 13 "" # print enough spaces
+    # overwrite each line with spaces
+    for ((i = 0; i <= TANK_HEIGHT; i++)); do
+        printf '\x1b[%d;%dH%*s' "$((y + i))" "$x" "$TANK_LEN" ""
     done
 }
 
@@ -234,8 +174,7 @@ draw-info() {
     local angle=$1
     local power=$2
     local x=$3
-    tput cup $((height)) "$x"
-    printf "Angle: %d° - Power: %d\e[K" "$angle" "$power"
+    printf '\x1b[%d;%dHAngle: %d° - Power: %d\x1b[K' "$height" "$x" "$angle" "$power"
 }
 
 # move a tank to the right
@@ -243,7 +182,7 @@ move-tank-right() {
     local area_left=$((area1 - TANK_LEN))
     local area_right=$((width - TANK_LEN))
     if ((player % 2)); then
-        if ((left_tank_pos[0] == area_left)); then return; fi # make sure tank does not leave area
+        if ((left_tank_pos[0] == area_left + 1)); then return; fi # make sure tank does not leave area
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]++))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
@@ -258,12 +197,12 @@ move-tank-right() {
 # move a tank to the left
 move-tank-left() {
     if ((player % 2)); then
-        if ((left_tank_pos[0] == 1)); then return; fi
+        if ((left_tank_pos[0] == 0)); then return; fi
         delete-tank "${left_tank_pos[@]}" "$L_TANK"
         ((left_tank_pos[0]--))
         draw-tank "${left_tank_pos[@]}" "$L_TANK"
     else
-        if ((right_tank_pos[0] == area2)); then return; fi
+        if ((right_tank_pos[0] == area2 + 1)); then return; fi
         delete-tank "${right_tank_pos[@]}" "$R_TANK"
         ((right_tank_pos[0]--))
         draw-tank "${right_tank_pos[@]}" "$R_TANK"
@@ -336,7 +275,7 @@ collision() {
         explosion "$blt_x" "$blt_y"
         # update obstacle
         for ((i = blt_x - 2; i <= blt_x + 2; i++)); do
-            for ((j = blt_y - 2; j <= blt_y + 2; j++)); do
+            for ((j = blt_y - 3; j <= blt_y + 1; j++)); do
                 unset "obstacles_array[$i,$j]"
             done
         done
@@ -351,7 +290,7 @@ tank-collision() {
     local blt_y=$2
 
     # if bullet is where tank is then explosion.
-    if ((blt_y > height - 5)); then
+    if ((blt_y > height - 4)); then
         if ((blt_x >= right_tank_pos[0] && blt_x <= right_tank_pos[0] + TANK_LEN)); then
             aplay ./sound/mechanical_explosion.wav &>/dev/null &
             explosion "$blt_x" "$blt_y"
@@ -380,21 +319,21 @@ tank-collision() {
 win() {
     local msg
     msg="Player $1 wins!"
-    tput clear
+    printf "\x1b[H\x1b[2J" # clear
     printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 2 - ${#msg}))" "$msg"
-    sleep 2
+    sleep 3
     cleanup
-    exit 0
+    main
 }
 
 lose() {
     local msg
     msg="Player $1 killed himself!"
-    tput clear
+    printf "\x1b[H\x1b[2J" # clear
     printf '\x1b[%d;%dH%s' "$((height / 2))" "$((width / 2 - ${#msg}))" "$msg"
-    sleep 2
+    sleep 3
     cleanup
-    exit 0
+    main
 }
 
 # print explosions
@@ -407,18 +346,16 @@ explosion() {
     for frame in "${EX_ARR[@]}"; do
         row=$((y - 1))
         while read -r line; do
-            tput cup "$((row + mv_frame_v))" "$((x + mv_frame_h - 1))"
-            printf '%s' "$line"
+            printf '\x1b[%d;%dH%s' "$((row + mv_frame_v))" "$((x + mv_frame_h))" "$line"
             ((row++))
         done <<<"$frame"
         ((mv_frame_v--))
         ((mv_frame_h--))
-        sleep 0.06
+        sleep 0.05
     done
     row=$((y - 1))
     while read -r line; do
-        tput cup "$((row + mv_frame_v + 1))" "$((x + mv_frame_h))"
-        printf '%s' "$line"
+        printf '\x1b[%d;%dH%s' "$((row + mv_frame_v + 1))" "$((x + mv_frame_h + 1))" "$line"
         ((row++))
     done <<<"$H_FRAME"
 }
@@ -428,9 +365,10 @@ explosion() {
 
 # prepare screen
 main() {
+    screen-too-small # check if the screen is acceptable
 
     # trap signals
-    trap 'check-resize' SIGWINCH
+    trap 'check-resize' WINCH
     trap 'cleanup; exit 130' INT
     trap 'cleanup; exit 143' TERM
     trap cleanup EXIT
@@ -438,37 +376,29 @@ main() {
     local key
     local key2
 
-    screen-too-small # check if the screen is acceptable
-
     # prepare screen for game
-    tput smcup                      # switch to alternate screen
+    printf "\x1b[?1049h"            # switch to alternate screen
     stty -echo -icanon min 1 time 0 # change terminal behaviour (no echo and no enter to read)
-    tput civis                      # hide cursor
-    tput clear                      # clear to screen to menu
-
+    printf "\x1b[?25l"              # hide cursor
+    printf "\x1b[H\x1b[2J"          # clear to screen to menu
     # Print initial menu
     print-menu
-
-    tput clear # clear to screen to star game
-
+    printf "\x1b[H\x1b[2J" # clear to screen to start game
     # draw obstacle
     set-obstacles "$density"
     draw-obstacles
-
     # draws initial state
     draw-tank "${left_tank_pos[@]}" "$L_TANK"
     draw-tank "${right_tank_pos[@]}" "$R_TANK"
-
+    # main game loop
     while true; do
         draw-info "$l_angle" "$l_power" "0"
         draw-info "$r_angle" "$r_power" $((width - 23))
-
         read -rsn1 key
         if [[ $key == $'\x1b' ]]; then
             read -rsn2 key2
             key+="$key2"
         fi
-
         case "$key" in
         m) if ((player % 2)); then ((l_power < MAX_POWER ? l_power++ : l_power)); else ((r_power < MAX_POWER ? r_power++ : r_power)); fi ;;
         l) if ((player % 2)); then ((l_power > MIN_POWER ? l_power-- : l_power)); else ((r_power > MIN_POWER ? r_power-- : r_power)); fi ;;
