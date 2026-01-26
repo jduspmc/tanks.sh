@@ -17,7 +17,6 @@ height=$(tput lines)
 width=$(tput cols)
 # ensure playable area divisible by 3
 width=$((width - width % 3))
-
 # playable area sections
 area1=$((width / 3))
 area2=$((2 * width / 3))
@@ -31,7 +30,6 @@ l_angle=45
 r_angle=45
 l_angle_rad=$(bc -l <<<"$PI*$l_angle/180")
 r_angle_rad=$(bc -l <<<"$PI*$r_angle/180")
-
 l_power=40
 r_power=40
 density=50
@@ -112,7 +110,7 @@ print-menu() {
         printf '\x1b[%d;%dH%s' "$((height / 7 + y))" "$((width / 7))" "$line"
         ((y++))
     done <<<"$TUTORIAL"
-
+    # menu loop
     while true; do
         unset item_col
         item_col[number % 3]=$BB_ON_W
@@ -251,8 +249,7 @@ fire-bullet() {
         ((i > 1 && pos_y[i - 2] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" "$TRAIL2"
         ((i > 2 && pos_y[i - 3] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" "$TRAIL3"
 
-        # sleep animation
-        sleep 0.015 # figure out what number is best
+        sleep 0.015 # sleep animation
 
         # Erase the bullet by printing a space in the same spot
         ((pos_y[i] > 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i]}" "${pos_x[i]}" " "
@@ -261,11 +258,8 @@ fire-bullet() {
         ((i > 1 && pos_y[i - 2] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 2]}" "${pos_x[i - 2]}" " "
         ((i > 2 && pos_y[i - 3] >= 0)) && printf '\x1b[%d;%dH%s' "${pos_y[i - 3]}" "${pos_x[i - 3]}" " "
     done
-    draw-tank "${right_tank_pos[@]}" "$R_TANK"
-    draw-tank "${left_tank_pos[@]}" "$L_TANK"
 }
 
-# collision logic
 # collision with obstacle
 collision() {
     local blt_x=$1
