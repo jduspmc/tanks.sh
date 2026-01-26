@@ -12,6 +12,8 @@ not a software engineer. If you have suggestion I'm happy to listen.
 
 ## Usage
 
+Run `bash tank.sh`.
+
 ```Bash
 The objective is to destroy the enemy tank.
 
