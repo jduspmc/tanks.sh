@@ -111,10 +111,10 @@ GRAVITY=30
 # power constants (initial projectile velocity)
 MAX_POWER=110
 MIN_POWER=20
-
 MAX_ANGLE=180
 MIN_ANGLE=0
 
+# time evolution
 TIME_LEN=300
 DELTA=0.025
 
@@ -139,7 +139,7 @@ width=$((width - width % 3))
 area1=$((width / 3))
 area2=$((2 * width / 3))
 
-# initial tank position
+# initial tank positions
 left_tank_pos=($((area1 / 3)) $((height - TANK_HEIGHT)))
 right_tank_pos=($((5 * area1 / 2)) $((height - TANK_HEIGHT)))
 
@@ -400,7 +400,6 @@ collision() {
 tank-collision() {
     local blt_x=$1
     local blt_y=$2
-
     # if bullet is where tank is then explosion.
     if ((blt_y > height - 4)); then
         if ((blt_x >= right_tank_pos[0] && blt_x <= right_tank_pos[0] + TANK_LEN)); then
@@ -478,7 +477,6 @@ explosion() {
 # prepare screen
 main() {
     screen-too-small # check if the screen is acceptable
-
     # trap signals
     trap 'check-resize' WINCH
     trap 'cleanup; exit 130' INT
