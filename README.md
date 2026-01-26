@@ -7,9 +7,6 @@ be entirely accurate, and some details may differ.
 
 ![tanks.sh](./image/tanks.png)
 
-I created it as an excuse to practice bash scripting. This is a hobby and, I'm
-not a software engineer. If you have suggestion I'm happy to listen.
-
 ## Usage
 
 Run `bash tank.sh`.
