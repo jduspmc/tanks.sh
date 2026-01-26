@@ -230,13 +230,12 @@ print-menu() {
     done <<<"$TUTORIAL"
     # menu loop
     while true; do
-        unset item_col
+        item_col=()
         item_col[number % 3]=$BB_ON_W
-
         printf '\x1b[%d;%dH%s' "$((2 * height / 3))" "$((width / 5))" "Select obstacle density (press 'q' to exit)"
-        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 1))" "$((width / 5 + 1))" "${item_col[0]}Easy$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 2))" "$((width / 5 + 1))" "${item_col[1]}Normal$COL_NONE"
-        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 3))" "$((width / 5 + 1))" "${item_col[2]}Hard$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 1))" "$((width / 5 + 2))" "${item_col[0]}Easy$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 2))" "$((width / 5 + 2))" "${item_col[1]}Normal$COL_NONE"
+        printf '\x1b[%d;%dH%s' "$((2 * height / 3 + 3))" "$((width / 5 + 2))" "${item_col[2]}Hard$COL_NONE"
 
         read -rsn1 key
         if [[ $key == $'\x1b' ]]; then
@@ -476,15 +475,15 @@ explosion() {
 
 # prepare screen
 main() {
+    local key
+    local key2
+
     screen-too-small # check if the screen is acceptable
     # trap signals
     trap 'check-resize' WINCH
     trap 'cleanup; exit 130' INT
     trap 'cleanup; exit 143' TERM
     trap cleanup EXIT
-
-    local key
-    local key2
 
     # prepare screen for game
     printf "\x1b[?1049h"            # switch to alternate screen
