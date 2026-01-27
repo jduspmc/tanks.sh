@@ -348,13 +348,10 @@ fire-bullet() {
 
     aplay ./sound/explosion_2.wav &>/dev/null & # play sound
     for ((i = 0; i <= TIME_LEN; i++)); do
-        pos_x[i]=$(bc -l <<<"$tank_shift+$xinit+$v_x*${TIME_ARR[$i]}")
-        pos_x[i]=$(printf '%.0f' "${pos_x[i]}") # turn into integer
-        pos_y[i]=$(bc -l <<<"$height - ($yinit + $v_y*${TIME_ARR[$i]} - 0.5*$GRAVITY*(${TIME_ARR[$i]})^2)")
-        pos_y[i]=$(printf '%.0f' "${pos_y[i]}")
+        pos_x[i]=$(bc -l <<<"scale=0; ($tank_shift+$xinit+$v_x*${TIME_ARR[$i]})/1")
+        pos_y[i]=$(bc -l <<<"scale=0; ($height - ($yinit + $v_y*${TIME_ARR[$i]} - 0.5*$GRAVITY*(${TIME_ARR[$i]})^2))/1")
         if ((pos_y[i] > height - 1)); then break; fi
         if ((pos_x[i] >= width || pos_x[i] <= 0)); then break; fi
-        # echo "$i - ${pos_x[i]} - ${pos_y[i]}" >>data.dat
         # check collision
         collision "${pos_x[i]}" "${pos_y[i]}" || return # if there is a collision return
         tank-collision "${pos_x[i]}" "${pos_y[i]}"      # if there is a collision with tank and end
