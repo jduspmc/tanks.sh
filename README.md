@@ -32,6 +32,6 @@ Controls:
 Sound playback requires `aplay` (ALSA). However, the game can be played without it.
 Sound effects by [dklon](https://opengameart.org/content/boom-pack-2) (OpenGameArt, CC-BY 3.0).
 
-## LICENCE
+## LICENSE
 
 [MIT](./LICENCE)
